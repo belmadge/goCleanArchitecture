@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package orders;
+
+service OrderService {
+    rpc ListOrders (ListOrdersRequest) returns (ListOrdersResponse);
+}
+
+message ListOrdersRequest {}
+
+message ListOrdersResponse {
+    repeated Order orders = 1;
+}
+
+message Order {
+    int32 id = 1;
+    string customer_name = 2;
+    double total = 3;
+}
