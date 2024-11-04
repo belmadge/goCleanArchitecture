@@ -1,0 +1,10 @@
+type Order {
+    id: ID!
+    customer_name: String!
+    order_date: String!
+    status: String!
+}
+
+type Query {
+    orders: [Order!]!
+}

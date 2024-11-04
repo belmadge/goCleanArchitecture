@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package order;
+
+option go_package = "/proto;order";
+
+service OrderService {
+  rpc ListOrders (ListOrdersRequest) returns (ListOrdersResponse) {}
+}
+
+message ListOrdersRequest {}
+
+message Order {
+  int32 id = 1;
+  string customer_name = 2;
+  string order_date = 3;
+  string status = 4;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+}
+

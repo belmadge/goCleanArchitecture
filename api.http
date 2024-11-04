@@ -1,0 +1,11 @@
+# Listar ordens via REST
+GET http://localhost:8080/order
+Content-Type: application/json
+
+# Listar ordens via GraphQL
+POST http://localhost:8080/graphql
+Content-Type: application/json
+
+{
+"query": "{ orders { id customer_name order_date status } }"
+}

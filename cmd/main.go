@@ -5,58 +5,43 @@ import (
 	"net"
 	"net/http"
 
-	api "github.com/belmadge/goCleanArchitecture/api/http"
-	"github.com/belmadge/goCleanArchitecture/internal/app/service"
-	"github.com/belmadge/goCleanArchitecture/internal/db"
-	"github.com/belmadge/goCleanArchitecture/internal/graphql"
-	grpcService "github.com/belmadge/goCleanArchitecture/internal/grpc"
-	"github.com/belmadge/goCleanArchitecture/pkg/repository"
+	"github.com/belmadge/goCleanArchitecture/pkg/api/graphql"
+	"github.com/belmadge/goCleanArchitecture/pkg/api/graphql/generated"
+	grpcService "github.com/belmadge/goCleanArchitecture/pkg/api/grpc"
+	"github.com/belmadge/goCleanArchitecture/pkg/api/rest"
+	"github.com/belmadge/goCleanArchitecture/pkg/database"
+	"github.com/belmadge/goCleanArchitecture/pkg/services"
 	pb "github.com/belmadge/goCleanArchitecture/proto"
+
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	db, err := db.Connect()
+	db, err := database.Connect()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Erro ao conectar ao banco: %v", err)
 	}
+	svc := &services.OrderService{DB: db}
 
-	repo := repository.NewOrderRepository(db)
-	orderService := service.NewOrderService(repo)
-	handler := api.NewOrderHandler(repo)
+	http.HandleFunc("/order", rest.ListOrdersHandler(svc))
 
-	go func() {
-		http.HandleFunc("/order", handler.ListOrders)
-		log.Println("HTTP Server started at :8080")
-		log.Fatal(http.ListenAndServe(":8080", nil))
-	}()
+	gqlHandler := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
+		Resolvers: &graphql.Resolver{OrderService: svc},
+	}))
 
-	go func() {
-		lis, err := net.Listen("tcp", ":50051")
-		if err != nil {
-			log.Fatalf("Failed to listen: %v", err)
-		}
-		grpcServer := grpc.NewServer()
-		pb.RegisterOrderServiceServer(grpcServer, grpcService.NewOrderServiceServer(orderService))
-		log.Println("GRPC Server started at :50051")
-		log.Fatal(grpcServer.Serve(lis))
-	}()
+	http.Handle("/graphql", gqlHandler)
+	http.Handle("/playground", playground.Handler("GraphQL Playground", "/graphql"))
 
-	go func() {
-        schema, err := graphql.NewSchema(orderService)
-        if err != nil {
-            log.Fatalf("Failed to create GraphQL schema: %v", err)
-        }
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("Erro ao iniciar gRPC: %v", err)
+	}
+	grpcServer := grpc.NewServer()
+	pb.RegisterOrderServiceServer(grpcServer, &grpcService.OrderGRPCService{OrderService: svc})
 
-        h := handler.New(&handler.Config{
-            Schema: &schema,
-            Pretty: true,
-        })
-
-        http.Handle("/graphql", h)
-        log.Println("GraphQL Server started at :8081")
-        log.Fatal(http.ListenAndServe(":8081", nil))
-    }()
-
-	select {}
+	go grpcServer.Serve(lis)
+	log.Println("Servidores REST, GraphQL e gRPC iniciados nas portas 8080 (REST/GraphQL) e 50051 (gRPC)")
+	http.ListenAndServe(":8080", nil)
 }
